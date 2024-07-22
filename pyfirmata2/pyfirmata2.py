@@ -48,11 +48,12 @@ class Board(object):
                     comports = []
                     for d in l:
                         if d.device:
-                            if ("USB" in d.description) or (not d.description):
+                            if ("USB" in d.description) or (not d.description) or ("Arduino" in d.description):
                                 devname = str(d.device)
                                 comports.append(devname)
                     comports.sort()
-                    port = comports[0]
+                    if len(comports) > 0:
+                        port = comports[0]
                 else:
                     for d in l:
                         if d.vid:
@@ -355,8 +356,12 @@ class Board(object):
 
     def exit(self):
         """Call this to exit cleanly."""
-        # First detach all servo's, otherwise it somehow doesn't want to close...
+        for a in self.analog:
+            a.disable_reporting()
+        for d in self.digital:
+            d.disable_reporting()
         self.samplingOff()
+        # First detach all servo's, otherwise it somehow doesn't want to close...
         if hasattr(self, 'digital'):
             for pin in self.digital:
                 if pin.mode == SERVO:
@@ -449,6 +454,8 @@ class Port(object):
 
     def disable_reporting(self):
         """Disable the reporting of the port."""
+        if not self.reporting:
+            return
         self.reporting = False
         msg = bytearray([REPORT_DIGITAL + self.port_number, 0])
         self.board.sp.write(msg)
@@ -541,6 +548,8 @@ class Pin(object):
     def disable_reporting(self):
         """Disable the reporting of an input pin."""
         if self.type == ANALOG:
+            if not self.reporting:
+                return
             self.reporting = False
             msg = bytearray([REPORT_ANALOG + self.pin_number, 0])
             self.board.sp.write(msg)
@@ -553,7 +562,7 @@ class Pin(object):
         if self.mode == UNAVAILABLE:
             raise IOError("Cannot read pin {0}".format(self.__str__()))
         if (self.mode is INPUT) or (self.mode is INPUT_PULLUP) or (self.type == ANALOG):
-            warnings.warn("Use a callback handler for pin {0}".format(self.__str__()))
+            raise IOError("Reading via polling is not supported by this library. Please use the original pyfirmata.")
         return self.value
 
     def register_callback(self, _callback):
