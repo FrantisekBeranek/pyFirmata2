@@ -9,6 +9,8 @@ import serial
 
 from .boards import BOARDS
 
+from .constants import *
+
 
 def get_the_board(
         layout=BOARDS["arduino"], base_dir="/dev/", identifier="tty.usbserial"
@@ -176,6 +178,7 @@ def pin_list_to_board_dict(pinlist):
         PWM:    3, 8
         SERV0:  4, 14
         I2C:    6, 1
+        SERIAL: 10, 7
     """
 
     board_dict = {
@@ -184,9 +187,11 @@ def pin_list_to_board_dict(pinlist):
         "pwm": [],
         "servo": [],
         "disabled": [],
+        "serial": [],
+        "i2c": []
     }
     for i, pin in enumerate(pinlist):
-        pin.pop()  # removes the 0x79 on end
+        pin.pop()  # removes the 0x7F on end
         if not pin:
             board_dict["disabled"] += [i]
             board_dict["digital"] += [i]
@@ -196,21 +201,30 @@ def pin_list_to_board_dict(pinlist):
             # Iterate over evens
             if j % 2 == 0:
                 # This is safe. try: range(10)[5:50]
-                if pin[j:j + 4] == [0, 1, 1, 1]:
+                if pin[j:j + 2] == [INPUT, 1]:  #all digital pins can also be output and input pullup
                     board_dict["digital"] += [i]
 
-                if pin[j:j + 2] == [2, 10]:
+                if pin[j:j + 2] == [ANALOG, 10]:
                     board_dict["analog"] += [i]
 
-                if pin[j:j + 2] == [3, 8]:
+                if pin[j:j + 2] == [PWM, 8]:
                     board_dict["pwm"] += [i]
 
-                if pin[j:j + 2] == [4, 14]:
+                if pin[j:j + 2] == [SERVO, 14]:
                     board_dict["servo"] += [i]
 
-                # Desable I2C
-                if pin[j:j + 2] == [6, 1]:
-                    pass
+                if pin[j] == SERIAL:
+                    res = pin[j+1]
+                    if res%2:  # Tx pin
+                        serial_dict = {"port":int((res-1)/2), "rx":i+1, "tx":i}
+                        board_dict["serial"].append(serial_dict)
+                        pass
+
+                if pin[j:j + 2] == [I2C_MODE, 1]:
+                    board_dict["i2c"] += [i]
+                    # It doesn't matter if pin is SDA or SCL.
+                    # I2C pins are used just for marking them as taken
+                    # when using I2C bus (just 1 bus per board)
 
     # We have to deal with analog pins:
     # - (14, 15, 16, 17, 18, 19)

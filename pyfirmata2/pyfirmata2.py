@@ -11,6 +11,7 @@ from sys import platform
 from .util import pin_list_to_board_dict, to_two_bytes, two_byte_iter_to_str, two_byte_iter_to_bytes, Iterator
 from .constants import *
 from .serial import Serial, MissingPinDefinitionError
+from .i2c import I2C
 
 
 class PinAlreadyTakenError(Exception):
@@ -119,7 +120,9 @@ class Board(object):
             
         self.serial = []
         for i in board_layout['serial']:
-            self.serial.append(Serial(self, i))
+            self.serial.append(Serial(self, i["port"], i["rx"], i["tx"]))
+            
+        self.i2c = I2C(self, board_layout['i2c'][0], board_layout['i2c'][1])
 
         # Allow to access the Pin instances directly
         for port in self.digital_ports:
@@ -146,6 +149,8 @@ class Board(object):
         self.add_cmd_handler(REPORT_VERSION, self._handle_report_version)
         self.add_cmd_handler(REPORT_FIRMWARE, self._handle_report_firmware)
         self.add_cmd_handler(SERIAL_DATA, self._handle_serial_message)
+        self.add_cmd_handler(I2C_REPLY, self._handle_i2c_message)
+        self.add_cmd_handler(STRING_DATA, self._handle_string_data)
 
     def samplingOn(self, sample_interval=19):
         # enables sampling
@@ -206,6 +211,8 @@ class Board(object):
                                         'p' for pwm (Pulse-width modulation)
                                         's' for servo
                                         'u' for input with pull-up resistor enabled
+                                        'S' for serial Rx/Tx
+                                        'I' for I2C
 
         All seperated by ``:``.
         """
@@ -240,6 +247,10 @@ class Board(object):
                 pin.mode = INPUT
             elif bits[2] == 'o':
                 pin.mode = OUTPUT
+            elif bits[2] == 'S':
+                pin.mode = SERIAL
+            elif bits[2] == 'I':
+                pin.mode = I2C_MODE
             else:
                 pin.mode = INPUT
         else:
@@ -249,17 +260,32 @@ class Board(object):
     def get_serial(self, port, baudRate=115200, rx=None, tx=None) -> Serial:
         """ Starts port, marks pins as taken """
         s_port = None
+        if port == 0:
+            raise PinAlreadyTakenError("Serial port 0 reserved")
         if port < 0x08: # HW port
-            s_port = self.serial[port]
-            # TODO mark pins as taken
+            for s in self.serial:
+                if s._port == port:
+                    s_port = s
+                    break
+            if s_port == None:
+                raise InvalidPinDefError("Serial port {0} not available with current board".format(port))
+            self.get_pin('d:'+str(s_port._rx)+':S') # Just to mark pin as taken
+            self.get_pin('d:'+str(s_port._tx)+':S') # Just to mark pin as taken
         else:
-            if rx==None or tx==None:
+            if rx==None or tx==None:    # Rx and Tx pins must be specified for SW serial
                 raise MissingPinDefinitionError("Both Rx and Tx pins must be specified")
-            self.get_pin('d:'+str(rx)+':o') # Just to mark pin as taken
-            self.get_pin('d:'+str(tx)+':o') # Just to mark pin as taken
+            self.get_pin('d:'+str(rx)+':S') # Just to mark pin as taken
+            self.get_pin('d:'+str(tx)+':S') # Just to mark pin as taken
             s_port = Serial(self, port)
+            self.serial.append(s_port)
         s_port.start(baudRate, rx, tx)
         return s_port
+    
+    def get_i2c(self) -> I2C:
+        self.get_pin('d:'+str(self.i2c._sda)+':I') # Just to mark pin as taken
+        self.get_pin('d:'+str(self.i2c._scl)+':I') # Just to mark pin as taken
+        self.i2c.config()
+        return self.i2c
 
     def __pass_time(self, t):
         """Non-blocking time-out for ``t`` seconds."""
@@ -398,8 +424,17 @@ class Board(object):
         port = port & 0x0F
         if inst == SERIAL_REPLY:
             msg = two_byte_iter_to_bytes(data)
-            print(msg.decode())
-            self.serial[port]._buff.extend(msg)
+            for s in self.serial:
+                if s._port == port:
+                    s._buff.extend(msg)
+
+    def _handle_i2c_message(self, *data):
+        msg = two_byte_iter_to_bytes(data)
+        self.i2c._buff.extend(msg)
+
+    def _handle_string_data(self, *data):
+        msg = two_byte_iter_to_bytes(data)
+        print(bytearray(msg).decode())
 
     def _handle_report_version(self, major, minor):
         self.firmata_version = (major, minor)

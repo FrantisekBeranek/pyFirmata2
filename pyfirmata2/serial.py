@@ -1,13 +1,19 @@
 from .constants import *
 
+'''
+Extends standard pyFirmata2 library with Serial port.
+'''
+
 class MissingPinDefinitionError(Exception):
     pass
 
 class Serial(object):
     """ Object for serial port handling. """
-    def __init__(self, board, port) -> None:
+    def __init__(self, board, port, rx=None, tx=None) -> None:
         self._board = board
         self._port = port
+        self._rx = rx
+        self._tx = tx
         self._buff = []
 
     def start(self, baudRate=115200, rx=None, tx=None) -> None:

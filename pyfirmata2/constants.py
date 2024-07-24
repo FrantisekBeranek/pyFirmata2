@@ -49,6 +49,7 @@ OUTPUT = 1         # as defined in wiring.h
 ANALOG = 2         # analog pin in analogInput mode
 PWM = 3            # digital pin in PWM output mode
 SERVO = 4          # digital pin in SERVO mode
+I2C_MODE = 6            # I2C pin (SDA | SCL)
 SERIAL = 10        # serial pin (Rx | Tx)
 INPUT_PULLUP = 11  # Same as INPUT, but with the pin's internal pull-up resistor enabled
 
@@ -57,7 +58,7 @@ DIGITAL = OUTPUT   # same as OUTPUT below
 # ANALOG is already defined above
 
 # Time to wait after initializing serial, used in Board.__init__
-BOARD_SETUP_WAIT_TIME = 2
+BOARD_SETUP_WAIT_TIME = 3
 
 ##################
 #     SERIAL     #

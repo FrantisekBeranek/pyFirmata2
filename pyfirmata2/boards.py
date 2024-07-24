@@ -5,7 +5,8 @@ BOARDS = {
         'pwm': (3, 5, 6, 9, 10, 11),
         'use_ports': True,
         'disabled': (0, 1), # Rx, Tx, Crystal
-        'serial' : (0)       # Serial0 unavailable
+        'serial' : (),    # Serial0 unavailable
+        'i2c' : (18, 19)
     },
     'arduino_mega': {
         'digital': tuple(x for x in range(86)),
@@ -13,7 +14,10 @@ BOARDS = {
         'pwm': tuple(x for x in range(2, 14)),
         'use_ports': True,
         'disabled': (0, 1),     # Rx, Tx, Crystal
-        'serial' : (0, 1, 2, 3)    # Serial0 unavailable
+        'serial' : ({'port': 3, 'rx': 15, 'tx': 14}, 
+                    {'port': 2, 'rx': 17, 'tx': 16}, 
+                    {'port': 1, 'rx': 19, 'tx': 18}),    # Serial0 unavailable
+        'i2c' : (20, 21)
     },
     'arduino_due': {
         'digital': tuple(x for x in range(54)),
@@ -21,7 +25,10 @@ BOARDS = {
         'pwm': tuple(x for x in range(2, 14)),
         'use_ports': True,
         'disabled': (0, 1),     # Rx, Tx, Crystal
-        'serial' : (0, 1, 2, 3)    # Serial0 unavailable
+        'serial' : ({'port': 3, 'rx': 15, 'tx': 14}, 
+                    {'port': 2, 'rx': 17, 'tx': 16}, 
+                    {'port': 1, 'rx': 19, 'tx': 18}),    # Serial0 unavailable
+        'i2c' : (20, 21)
     },
     'arduino_nano': {
         'digital': tuple(x for x in range(14)),
@@ -29,6 +36,7 @@ BOARDS = {
         'pwm': (3, 5, 6, 9, 10, 11),
         'use_ports': True,
         'disabled': (0, 1), # Rx, Tx, Crystal
-        'serial' : (0)       # Serial0 unavailable
+        'serial' : (),    # Serial0 unavailable
+        'i2c' : (18, 19)
     }
 }
