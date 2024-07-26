@@ -80,7 +80,7 @@ class Serial(object):
     def readBytes(self, bytesToRead:int) -> bytes:
         buff = []
         for i in range(bytesToRead):
-            buff.append(self.readByte())
+            buff += [self.readByte()]
         return buff
     
     def available(self) -> int:

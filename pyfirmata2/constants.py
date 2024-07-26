@@ -29,6 +29,8 @@ SYSEX_NON_REALTIME = 0x7E   # MIDI Reserved for non-realtime messages
 SYSEX_REALTIME = 0x7F       # MIDI Reserved for realtime messages
 
 # SysEx optional features
+ARE_YOU_THERE = 0X51        # As in Firmata Express
+I_AM_HERE = 0X52            # As in Firmata Express
 SERIAL_DATA = 0X60
 ENCODER_DATA = 0X61
 ACCELSTEPPER_DATA = 0X62

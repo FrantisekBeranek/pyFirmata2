@@ -28,16 +28,23 @@ class NoInputWarning(RuntimeWarning):
 
 class Board(object):
     """The Base class for any board."""
-    firmata_version = None
-    firmware = None
-    firmware_version = None
-    _command_handlers = {}
-    _command = None
-    _stored_data = []
-    _parsing_sysex = False
-    AUTODETECT = None
 
-    def __init__(self, port, layout=None, baudrate=57600, name=None, timeout=None, debug=False):
+    def __init__(self, port, id=None, layout=None, baudrate=57600, name=None, timeout=None, debug=False):
+            
+        self.firmata_version = None
+        self.firmware = None
+        self.firmware_version = None
+        self._command_handlers = {}
+        self._command = None
+        self._stored_data = []
+        self._parsing_sysex = False
+        self.AUTODETECT = None
+        self.id = None
+
+        self._set_default_handlers()
+        ports = []
+        if name != None:
+            self.name = name
         if port == self.AUTODETECT:
             l = serial.tools.list_ports.comports()
             if l:
@@ -45,6 +52,7 @@ class Board(object):
                     for d in l:
                         if 'ACM' in d.device or 'usbserial' in d.device or 'ttyUSB' in d.device:
                             port = str(d.device)
+                            ports.append(port)
                 elif platform == "win32":
                     comports = []
                     for d in l:
@@ -53,12 +61,12 @@ class Board(object):
                                 devname = str(d.device)
                                 comports.append(devname)
                     comports.sort()
-                    if len(comports) > 0:
-                        port = comports[0]
+                    ports = comports
                 else:
                     for d in l:
                         if d.vid:
                             port = str(d.device)
+                            ports.append(port)
         if port == self.AUTODETECT:
             self.samplerThread = None
             self.sp = None
@@ -66,12 +74,35 @@ class Board(object):
         if debug:
             print("Port=",port)
         self.samplerThread = Iterator(self)
-        self.sp = serial.Serial(port, baudrate, timeout=timeout)
+
+        if id != None:
+            for p in ports:
+                try:
+                    print("Trying to connect to port {0}".format(p))
+                    self.sp = serial.Serial(p, baudrate, timeout=timeout, exclusive=True)
+                    self.send_sysex(ARE_YOU_THERE, [])
+                    self.__pass_time(0.1)
+                    while self.bytes_available():
+                        self.iterate()
+                    if self.id == id:   # ID from board is correct
+                        port = p
+                        print("\nSuccess! Board connected via port {0}\n".format(p))
+                        break
+                    else:
+                        print("ID of board does not match")
+                        self.sp = None
+                except serial.SerialException: # port already used
+                    self.sp = None
+                    print("Port {0} already used. Skipping...".format(p))
+            if self.sp == None:
+                raise Exception('Could not find a serial port with matching ID.')
+        else:
+            self.sp = serial.Serial(port, baudrate, timeout=timeout, exclusive=True)
         # Allow 5 secs for Arduino's auto-reset to happen
         # Alas, Firmata blinks its version before printing it to serial
         # For 2.3, even 5 seconds might not be enough.
         # TODO Find a more reliable way to wait until the board is ready
-        self.__pass_time(BOARD_SETUP_WAIT_TIME)
+        #self.__pass_time(BOARD_SETUP_WAIT_TIME)
         self.name = name
         self._layout = layout
         if not self.name:
@@ -140,10 +171,9 @@ class Board(object):
         self.taken = {'analog': dict(map(lambda p: (p.pin_number, False), self.analog)),
                       'digital': dict(map(lambda p: (p.pin_number, False), self.digital))}
 
-        self._set_default_handlers()
-
     def _set_default_handlers(self):
         # Setup default handlers for standard incoming commands
+        self.add_cmd_handler(CAPABILITY_RESPONSE, self._handle_report_capability_response)
         self.add_cmd_handler(ANALOG_MESSAGE, self._handle_analog_message)
         self.add_cmd_handler(DIGITAL_MESSAGE, self._handle_digital_message)
         self.add_cmd_handler(REPORT_VERSION, self._handle_report_version)
@@ -151,6 +181,7 @@ class Board(object):
         self.add_cmd_handler(SERIAL_DATA, self._handle_serial_message)
         self.add_cmd_handler(I2C_REPLY, self._handle_i2c_message)
         self.add_cmd_handler(STRING_DATA, self._handle_string_data)
+        self.add_cmd_handler(I_AM_HERE, self._handle_ID)
 
     def samplingOn(self, sample_interval=19):
         # enables sampling
@@ -172,7 +203,6 @@ class Board(object):
         """
         Automatic setup based on Firmata's "Capability Query"
         """
-        self.add_cmd_handler(CAPABILITY_RESPONSE, self._handle_report_capability_response)
         self.send_sysex(CAPABILITY_QUERY, [])
         self.__pass_time(0.1)  # Serial SYNC
 
@@ -426,15 +456,20 @@ class Board(object):
             msg = two_byte_iter_to_bytes(data)
             for s in self.serial:
                 if s._port == port:
-                    s._buff.extend(msg)
+                    s._buff += msg
+                    break
 
     def _handle_i2c_message(self, *data):
         msg = two_byte_iter_to_bytes(data)
         self.i2c._buff.extend(msg)
 
     def _handle_string_data(self, *data):
+        msg = two_byte_iter_to_bytes(data).decode()
+        print("Board {0} recieved string: {1}".format(self.name, msg))
+
+    def _handle_ID(self, *data):
         msg = two_byte_iter_to_bytes(data)
-        print(bytearray(msg).decode())
+        self.id = int(msg[0])
 
     def _handle_report_version(self, major, minor):
         self.firmata_version = (major, minor)
@@ -503,9 +538,6 @@ class Port(object):
                 if pin.value == 1:
                     pin_nr = pin.pin_number - self.port_number * 8
                     mask |= 1 << int(pin_nr)
-#        print("type mask", type(mask))
-#        print("type self.portnumber", type(self.port_number))
-#        print("type pinnr", type(pin_nr))
         msg = bytearray([DIGITAL_MESSAGE + self.port_number, mask % 128, mask >> 7])
         self.board.sp.write(msg)
 
