@@ -665,11 +665,12 @@ class Pin(object):
         if value is not self.value:
             self.value = value
             if self.mode is OUTPUT:
-                if self.port:
-                    self.port.write()
-                else:
-                    msg = bytearray([DIGITAL_MESSAGE, self.pin_number, value])
-                    self.board.sp.write(msg)
+                #if self.port:
+                #    self.port.write()
+                #else:
+                # Port write deprecated (There was bug for some pins and pin write is more straightforward)
+                msg = bytearray([DIGITAL_MESSAGE, self.pin_number, value])
+                self.board.sp.write(msg)
             elif self.mode is PWM:
                 value = int(round(value * 255))
                 msg = bytearray([ANALOG_MESSAGE + self.pin_number, value % 128, value >> 7])
